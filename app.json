@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Pub Compass",
+    "slug": "pub-compass",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0f0f1a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pubcompass.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Pub Compass needs your location to find nearby pubs and point you in the right direction."
+      }
+    },
+    "android": {
+      "package": "com.pubcompass.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Pub Compass needs your location to find nearby pubs."
+        }
+      ]
+    ]
+  }
+}
