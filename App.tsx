@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, Linking, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useLocation } from './hooks/useLocation';
 import { useCompass } from './hooks/useCompass';
@@ -8,6 +8,7 @@ import { CompassArrow } from './components/CompassArrow';
 import { CompassRing } from './components/CompassRing';
 import { PubInfo } from './components/PubInfo';
 import { StatusMessage } from './components/StatusMessage';
+import { SettingsModal } from './components/SettingsModal';
 import { calculateBearing } from './utils/bearing';
 import { Pub } from './types';
 
@@ -20,8 +21,45 @@ export default function App() {
   const [pubs, setPubs] = useState<Pub[]>([]);
   const [pubsLoading, setPubsLoading] = useState(false);
   const [pubsError, setPubsError] = useState<string | null>(null);
+  const [visitedPubIds, setVisitedPubIds] = useState<Set<number>>(new Set());
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [compassOffset, setCompassOffset] = useState(180);
 
-  const closestPub = pubs.length > 0 ? pubs[0] : null;
+  // Filter out visited pubs
+  const availablePubs = useMemo(() => 
+    pubs.filter(pub => !visitedPubIds.has(pub.id)),
+    [pubs, visitedPubIds]
+  );
+
+  const closestPub = availablePubs.length > 0 ? availablePubs[0] : null;
+
+  const markAsVisited = () => {
+    if (closestPub) {
+      setVisitedPubIds(prev => new Set([...prev, closestPub.id]));
+    }
+  };
+
+  const resetVisited = () => {
+    setVisitedPubIds(new Set());
+  };
+
+  const openInMaps = () => {
+    if (!closestPub) return;
+    
+    const { latitude, longitude } = closestPub;
+    
+    // Use platform-specific maps URL with walking directions
+    const url = Platform.select({
+      ios: `maps://app?daddr=${latitude},${longitude}&dirflg=w`,
+      android: `google.navigation:q=${latitude},${longitude}&mode=w`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`,
+    });
+    
+    Linking.openURL(url).catch(() => {
+      // Fallback to Google Maps web with walking directions
+      Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`);
+    });
+  };
 
   const fetchPubs = useCallback(async () => {
     if (!location) return;
@@ -65,8 +103,8 @@ export default function App() {
     );
 
     // Subtract device heading to get relative direction
-    // Add 180 to correct for magnetometer orientation
-    return bearingToPub - heading + 180;
+    // Add compassOffset to correct for magnetometer orientation (adjustable in settings)
+    return bearingToPub - heading + compassOffset;
   };
 
   // Render loading state
@@ -127,15 +165,52 @@ export default function App() {
     );
   }
 
+  // Render all pubs visited
+  if (availablePubs.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="light" />
+        <View style={styles.header}>
+          <Text style={styles.title}>Pub Compass</Text>
+          <Text style={styles.subtitle}>🍻</Text>
+        </View>
+        <View style={styles.completedContainer}>
+          <Text style={styles.completedIcon}>🎉</Text>
+          <Text style={styles.completedText}>You've visited all {pubs.length} pubs nearby!</Text>
+          <TouchableOpacity style={styles.resetButton} onPress={resetVisited}>
+            <Text style={styles.resetButtonText}>Start New Pub Crawl</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Pub Compass</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerSpacer} />
+          <Text style={styles.title}>Pub Compass</Text>
+          <TouchableOpacity 
+            style={styles.settingsButton} 
+            onPress={() => setSettingsVisible(true)}
+          >
+            <Text style={styles.settingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.subtitle}>🍻</Text>
       </View>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        compassOffset={compassOffset}
+        onCompassOffsetChange={setCompassOffset}
+      />
 
       {/* Compass */}
       <View style={styles.compassContainer}>
@@ -148,11 +223,32 @@ export default function App() {
       {/* Pub Info */}
       {closestPub && (
         <View style={styles.pubInfoContainer}>
-          <Text style={styles.pubLabel}>Nearest Pub</Text>
+          <View style={styles.pubLabelRow}>
+            <Text style={styles.pubLabel}>Nearest Pub</Text>
+            {visitedPubIds.size > 0 && (
+              <TouchableOpacity onPress={resetVisited}>
+                <Text style={styles.resetLink}>Reset ({visitedPubIds.size} visited)</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <PubInfo pub={closestPub} />
-          {pubs.length > 1 && (
+          
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={styles.beenThereButton} onPress={markAsVisited}>
+              <Text style={styles.beenThereIcon}>✓</Text>
+              <Text style={styles.beenThereText}>Been There</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.openMapsButton} onPress={openInMaps}>
+              <Text style={styles.openMapsIcon}>🗺️</Text>
+              <Text style={styles.openMapsText}>Maps</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {availablePubs.length > 1 && (
             <Text style={styles.moreText}>
-              +{pubs.length - 1} more pub{pubs.length > 2 ? 's' : ''} nearby
+              +{availablePubs.length - 1} more pub{availablePubs.length > 2 ? 's' : ''} to go
             </Text>
           )}
         </View>
@@ -181,15 +277,36 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: 50,
     paddingBottom: 10,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: 16,
+  },
+  headerSpacer: {
+    width: 40,
+  },
   title: {
+    flex: 1,
     fontSize: 32,
     fontWeight: '800',
     color: '#f4a261',
     letterSpacing: 2,
     textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingsIcon: {
+    fontSize: 24,
   },
   subtitle: {
     fontSize: 24,
@@ -210,12 +327,67 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 16,
   },
+  pubLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   pubLabel: {
     fontSize: 14,
     color: '#6b7280',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 8,
+    fontWeight: '600',
+  },
+  resetLink: {
+    fontSize: 12,
+    color: '#e76f51',
+    fontWeight: '500',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 10,
+  },
+  beenThereButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e76f51',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  beenThereIcon: {
+    fontSize: 14,
+    color: '#fff',
+    marginRight: 6,
+    fontWeight: 'bold',
+  },
+  beenThereText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  openMapsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(42, 157, 143, 0.3)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2a9d8f',
+  },
+  openMapsIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  openMapsText: {
+    color: '#2a9d8f',
+    fontSize: 14,
     fontWeight: '600',
   },
   moreText: {
@@ -224,6 +396,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 12,
     fontStyle: 'italic',
+  },
+  completedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  completedIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  completedText: {
+    fontSize: 20,
+    color: '#e9c46a',
+    textAlign: 'center',
+    fontWeight: '600',
+    marginBottom: 24,
+  },
+  resetButton: {
+    backgroundColor: '#2a9d8f',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  resetButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   refreshButton: {
     flexDirection: 'row',
