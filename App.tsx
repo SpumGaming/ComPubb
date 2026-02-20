@@ -213,7 +213,6 @@ export default function App() {
         <StatusBar style="light" />
         <View style={styles.header}>
           <Text style={styles.title}>Pub Compass</Text>
-          <Text style={styles.subtitle}>🍻</Text>
         </View>
         <StatusMessage
           type="empty"
@@ -231,7 +230,6 @@ export default function App() {
         <StatusBar style="light" />
         <View style={styles.header}>
           <Text style={styles.title}>Pub Compass</Text>
-          <Text style={styles.subtitle}>🍻</Text>
         </View>
         <View style={styles.completedContainer}>
           <Text style={styles.completedIcon}>🎉</Text>
