@@ -8,6 +8,7 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   Platform,
+  Linking,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 
@@ -42,12 +43,46 @@ export function SettingsModal({
   onPreferredMapsAppChange,
 }: SettingsModalProps) {
   const [localSearchRadius, setLocalSearchRadius] = useState(searchRadius);
+  const [availableMapsApps, setAvailableMapsApps] = useState<typeof MAPS_OPTIONS>([]);
+  const [mapsDropdownOpen, setMapsDropdownOpen] = useState(false);
 
-  // Sync local state when modal opens
+  // Sync local state and detect available map apps when modal opens
   useEffect(() => {
-    if (visible) {
-      setLocalSearchRadius(searchRadius);
-    }
+    if (!visible) return;
+
+    setLocalSearchRadius(searchRadius);
+    setMapsDropdownOpen(false);
+
+    const detectApps = async () => {
+      const available: typeof MAPS_OPTIONS = [
+        { value: "default", label: "System Default", icon: "🗺️" },
+      ];
+
+      if (Platform.OS === "ios") {
+        // Apple Maps is always present on iOS
+        available.push({ value: "apple", label: "Apple Maps", icon: "🍎" });
+      }
+
+      try {
+        const googleScheme =
+          Platform.OS === "ios"
+            ? "comgooglemaps://"
+            : "geo:0,0";
+        if (await Linking.canOpenURL(googleScheme)) {
+          available.push({ value: "google", label: "Google Maps", icon: "🌐" });
+        }
+      } catch {}
+
+      try {
+        if (await Linking.canOpenURL("waze://")) {
+          available.push({ value: "waze", label: "Waze", icon: "🚗" });
+        }
+      } catch {}
+
+      setAvailableMapsApps(available);
+    };
+
+    detectApps();
   }, [visible]);
 
   const handleClose = () => {
@@ -127,44 +162,53 @@ export function SettingsModal({
                     Which app to open for directions
                   </Text>
 
-                  <View style={styles.mapsGrid}>
-                    {MAPS_OPTIONS.map((option) => {
-                      // Hide Apple Maps option on Android
-                      if (
-                        option.value === "apple" &&
-                        Platform.OS === "android"
-                      ) {
-                        return null;
-                      }
+                  <TouchableOpacity
+                    style={styles.dropdownButton}
+                    onPress={() => setMapsDropdownOpen((o) => !o)}
+                  >
+                    <Text style={styles.dropdownButtonText}>
+                      {availableMapsApps.find((o) => o.value === preferredMapsApp)?.icon ?? "🗺️"}
+                      {"  "}
+                      {availableMapsApps.find((o) => o.value === preferredMapsApp)?.label ?? "System Default"}
+                    </Text>
+                    <Text style={styles.dropdownChevron}>
+                      {mapsDropdownOpen ? "▲" : "▼"}
+                    </Text>
+                  </TouchableOpacity>
 
-                      const isSelected = preferredMapsApp === option.value;
-                      return (
-                        <TouchableOpacity
-                          key={option.value}
-                          style={[
-                            styles.mapsButton,
-                            isSelected && styles.mapsButtonSelected,
-                          ]}
-                          onPress={() => onPreferredMapsAppChange(option.value)}
-                        >
-                          <Text style={styles.mapsIcon}>{option.icon}</Text>
-                          <Text
+                  {mapsDropdownOpen && (
+                    <View style={styles.dropdownList}>
+                      {availableMapsApps.map((option) => {
+                        const isSelected = preferredMapsApp === option.value;
+                        return (
+                          <TouchableOpacity
+                            key={option.value}
                             style={[
-                              styles.mapsLabel,
-                              isSelected && styles.mapsLabelSelected,
+                              styles.dropdownItem,
+                              isSelected && styles.dropdownItemSelected,
                             ]}
+                            onPress={() => {
+                              onPreferredMapsAppChange(option.value);
+                              setMapsDropdownOpen(false);
+                            }}
                           >
-                            {option.label}
-                          </Text>
-                          {isSelected && (
-                            <View style={styles.checkmark}>
-                              <Text style={styles.checkmarkText}>✓</Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                            <Text style={styles.dropdownItemIcon}>{option.icon}</Text>
+                            <Text
+                              style={[
+                                styles.dropdownItemLabel,
+                                isSelected && styles.dropdownItemLabelSelected,
+                              ]}
+                            >
+                              {option.label}
+                            </Text>
+                            {isSelected && (
+                              <Text style={styles.dropdownTick}>✓</Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
 
                 {/* Compass Calibration */}
@@ -316,54 +360,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6b7280",
   },
-  mapsGrid: {
+  dropdownButton: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  mapsButton: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: "rgba(42, 157, 143, 0.1)",
-    borderRadius: 12,
-    padding: 16,
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "transparent",
-    position: "relative",
-  },
-  mapsButtonSelected: {
-    backgroundColor: "rgba(42, 157, 143, 0.3)",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(42, 157, 143, 0.1)",
+    borderWidth: 1,
     borderColor: "#2a9d8f",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  mapsIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  mapsLabel: {
-    fontSize: 13,
-    color: "#a8a8b3",
-    textAlign: "center",
+  dropdownButtonText: {
+    color: "#fff",
+    fontSize: 15,
     fontWeight: "500",
   },
-  mapsLabelSelected: {
+  dropdownChevron: {
+    color: "#2a9d8f",
+    fontSize: 12,
+  },
+  dropdownList: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#2a9d8f",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(42, 157, 143, 0.05)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(42, 157, 143, 0.2)",
+  },
+  dropdownItemSelected: {
+    backgroundColor: "rgba(42, 157, 143, 0.2)",
+  },
+  dropdownItemIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  dropdownItemLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: "#a8a8b3",
+    fontWeight: "500",
+  },
+  dropdownItemLabelSelected: {
     color: "#2a9d8f",
     fontWeight: "600",
   },
-  checkmark: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "#2a9d8f",
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkmarkText: {
-    color: "#fff",
-    fontSize: 12,
+  dropdownTick: {
+    color: "#2a9d8f",
+    fontSize: 16,
     fontWeight: "bold",
   },
   sliderContainer: {

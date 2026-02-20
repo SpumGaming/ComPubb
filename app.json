@@ -15,7 +15,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.pubcompass.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Pub Compass needs your location to find nearby pubs and point you in the right direction."
+        "NSLocationWhenInUseUsageDescription": "Pub Compass needs your location to find nearby pubs and point you in the right direction.",
+        "LSApplicationQueriesSchemes": ["comgooglemaps", "waze"]
       }
     },
     "android": {
