@@ -95,6 +95,7 @@ export function SettingsModal({
 
                   <View style={styles.sliderSection}>
                     <Slider
+                      testID="search-radius-slider"
                       style={styles.slider}
                       minimumValue={500}
                       maximumValue={5000}
