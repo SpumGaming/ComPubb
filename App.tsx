@@ -17,6 +17,7 @@ import { CompassRing } from "./components/CompassRing";
 import { PubInfo } from "./components/PubInfo";
 import { StatusMessage } from "./components/StatusMessage";
 import { SettingsModal, MapsApp } from "./components/SettingsModal";
+import { MouseBitesModal } from "./components/MouseBitesModal";
 import { calculateBearing } from "./utils/bearing";
 import { Pub } from "./types";
 
@@ -34,6 +35,7 @@ export default function App() {
   const [pubsError, setPubsError] = useState<string | null>(null);
   const [visitedPubIds, setVisitedPubIds] = useState<Set<number>>(new Set());
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [mouseBitesVisible, setMouseBitesVisible] = useState(false);
   const [compassOffset, setCompassOffset] = useState(180);
   const [searchRadius, setSearchRadius] = useState(1500); // Default 1.5km
   const [preferredMapsApp, setPreferredMapsApp] = useState<MapsApp>("default");
@@ -260,8 +262,15 @@ export default function App() {
             <Text style={styles.settingsIcon}>⚙️</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.subtitle}>🍻</Text>
+        <TouchableOpacity onPress={() => setMouseBitesVisible(true)}>
+          <Text style={styles.subtitle}>🍻</Text>
+        </TouchableOpacity>
       </View>
+
+      <MouseBitesModal
+        visible={mouseBitesVisible}
+        onClose={() => setMouseBitesVisible(false)}
+      />
 
       {/* Settings Modal */}
       <SettingsModal
