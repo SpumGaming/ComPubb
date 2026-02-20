@@ -212,8 +212,27 @@ export default function App() {
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
         <View style={styles.header}>
-          <Text style={styles.title}>Pub Compass</Text>
+          <View style={styles.headerRow}>
+            <View style={styles.headerSpacer} />
+            <Text style={styles.title}>Pub Compass</Text>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => setSettingsVisible(true)}
+            >
+              <Text style={styles.settingsIcon}>⚙️</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+        <SettingsModal
+          visible={settingsVisible}
+          onClose={() => setSettingsVisible(false)}
+          compassOffset={compassOffset}
+          onCompassOffsetChange={setCompassOffset}
+          searchRadius={searchRadius}
+          onSearchRadiusChange={setSearchRadius}
+          preferredMapsApp={preferredMapsApp}
+          onPreferredMapsAppChange={setPreferredMapsApp}
+        />
         <StatusMessage
           type="empty"
           message={`No pubs found within ${searchRadius < 1000 ? `${searchRadius}m` : `${(searchRadius / 1000).toFixed(1)}km`}. Try increasing the search radius in settings!`}
