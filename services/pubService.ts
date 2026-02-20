@@ -14,6 +14,20 @@ interface OverpassResponse {
   elements: OverpassElement[];
 }
 
+const FETCH_TIMEOUT_MS = 20000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 2000;
+
+async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Fetch nearby pubs directly from OpenStreetMap's Overpass API
  */
@@ -33,44 +47,52 @@ export async function fetchNearbyPubs(
     out center;
   `;
 
-  const response = await fetch(OVERPASS_API_URL, {
+  const options: RequestInit = {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `data=${encodeURIComponent(query)}`,
-  });
+  };
 
-  if (!response.ok) {
-    throw new Error(`Overpass API error: ${response.status}`);
+  let lastError: Error = new Error('Unknown error');
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+    }
+    try {
+      const response = await fetchWithTimeout(OVERPASS_API_URL, options);
+      if (!response.ok) {
+        throw new Error(`Overpass API error: ${response.status}`);
+      }
+      const data: OverpassResponse = await response.json();
+
+      return data.elements
+        .map((element) => {
+          const lat = element.lat ?? element.center?.lat;
+          const lon = element.lon ?? element.center?.lon;
+
+          if (lat === undefined || lon === undefined) {
+            return null;
+          }
+
+          const name = element.tags?.name ?? 'Unknown Pub';
+          const distance = calculateDistance(latitude, longitude, lat, lon);
+
+          return {
+            id: element.id,
+            name,
+            latitude: lat,
+            longitude: lon,
+            distanceMeters: distance,
+          };
+        })
+        .filter((pub): pub is Pub => pub !== null)
+        .sort((a, b) => a.distanceMeters - b.distanceMeters);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
 
-  const data: OverpassResponse = await response.json();
-
-  const pubs: Pub[] = data.elements
-    .map((element) => {
-      const lat = element.lat ?? element.center?.lat;
-      const lon = element.lon ?? element.center?.lon;
-
-      if (lat === undefined || lon === undefined) {
-        return null;
-      }
-
-      const name = element.tags?.name ?? 'Unknown Pub';
-      const distance = calculateDistance(latitude, longitude, lat, lon);
-
-      return {
-        id: element.id,
-        name,
-        latitude: lat,
-        longitude: lon,
-        distanceMeters: distance,
-      };
-    })
-    .filter((pub): pub is Pub => pub !== null)
-    .sort((a, b) => a.distanceMeters - b.distanceMeters);
-
-  return pubs;
+  throw lastError;
 }
 
 /**
