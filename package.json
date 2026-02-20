@@ -9,6 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@react-native-community/slider": "^4.5.5",
     "expo": "~54.0.32",
     "expo-location": "~19.0.8",
     "expo-sensors": "~15.0.8",
